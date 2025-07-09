@@ -57,7 +57,7 @@ Ensures HA and AZ fault tolerance
 Supports ~250 pods total
 
 
-To allow the administrator to monitor metrics and logs of both the EKS cluster and the applications running on it, you should ensure the following configurations are added:
+To allow the administrator to monitor metrics and logs of both the EKS cluster and the applications running on it, should ensure the following configurations are added:
 
 🔧 Add Monitoring Permissions to the IAM Role
 Update the aws_iam_role_policy_attachment block to include:
@@ -87,12 +87,12 @@ resource "aws_iam_role_policy_attachment" "worker_policies" {
 ```
 
 📦 Optional: Enable Container Insights
-You can also install CloudWatch Container Insights on the cluster with the CloudWatch agent and Fluent Bit.
+Can also install CloudWatch Container Insights on the cluster with the CloudWatch agent and Fluent Bit.
 
 
 ## SECTION ONE - B
 
-To grant ops-alice view-only permissions within the ops namespace via a role assumable only from a specific IP address, you'll need to do two things:
+To grant ops-user view-only permissions within the ops namespace via a role assumable only from a specific IP address. Two things need to be done:
 
 ** 1. Create the IAM Role OpsUser with Trust Policy
 This IAM role allows the specified user to assume it, but only from IP 52.94.236.248.
@@ -120,7 +120,7 @@ resource "aws_iam_role" "ops_user_role" {
 ```
 
 ** 2. Add RBAC Permissions to EKS for Namespace-Scoped View
-You'll need to create a Kubernetes Role and RoleBinding to allow view-only access to ops namespace. Example YAML:
+Need to create a Kubernetes Role and RoleBinding to allow view-only access to ops namespace. Example YAML:
 
 ```yaml
 # ops-viewer-role.yaml
@@ -169,7 +169,7 @@ kubectl apply -f ops-viewer-role.yaml
 ```
 
 
-This setup assumes your IAM role OpsUser is already federated with the EKS cluster via aws-auth ConfigMap.
+This setup assumes IAM role OpsUser is already federated with the EKS cluster via aws-auth ConfigMap.
 
 
 The connection is made via the annotation of the service account being used as follows:
@@ -265,6 +265,135 @@ metadata:
     eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/<order_processor_role>
 Replace the ARN with the actual role ARN output from the module.
 
+# 🚀 Terraform EKS Platform Deployment Guide
 
-**********************************************
+This repository provisions a production-ready EKS environment using Terraform modules.
 
+## 🧱 Project Structure
+
+```plaintext
+terraform-eks-platform/
+├── modules/
+│   ├── vpc/
+│   ├── eks/
+│   ├── worker/
+│   ├── iam_ops_user/
+│   └── irsa_order_processor/
+├── 01_network/
+├── 02_eks_cluster/
+├── 03_workers/
+├── 04_iam_ops_user/
+└── 05_irsa_order_processor/
+```
+
+---
+
+## ✅ Prerequisites
+
+- AWS CLI configured
+- Terraform v1.3+
+- An S3 bucket and optional DynamoDB table for remote state
+- IAM credentials with permissions to manage EKS, EC2, IAM, S3, and VPC resources
+
+---
+
+## 🛠 Deployment Steps
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/<your-org>/terraform-eks-platform.git
+cd terraform-eks-platform
+```
+
+---
+
+### 2. Deploy Infrastructure in Order
+
+Each folder uses remote state, so you should run `terraform init`, `plan`, and `apply` from within each directory.
+
+#### 🧩 `01_network`: VPCs, SSM endpoints, Bastion host
+
+```bash
+cd 01_network
+terraform init
+terraform workspace new dev || terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+#### ☁️ `02_eks_cluster`: Create EKS cluster
+
+```bash
+cd ../02_eks_cluster
+terraform init
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+#### ⚙️ `03_workers`: Attach worker node group
+
+```bash
+cd ../03_workers
+terraform init
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+#### 🔐 `04_iam_ops_user`: View-only IAM role for `ops` namespace
+
+```bash
+cd ../04_iam_ops_user
+terraform init
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+#### 📦 `05_irsa_order_processor`: IAM role for K8s service account (IRSA)
+
+```bash
+cd ../05_irsa_order_processor
+terraform init
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+---
+
+## 🔧 Post Deployment
+
+### Configure `kubectl`
+
+```bash
+aws eks update-kubeconfig --region eu-west-2 --name lab-cluster
+```
+
+### Verify cluster access
+
+```bash
+kubectl get nodes
+kubectl get pods -A
+```
+
+---
+
+## 🎯 Test IRSA Configuration
+
+To test if the `order-processor` service account has S3 permissions:
+
+```bash
+kubectl run irsa-test --rm -i --tty \
+  --serviceaccount order-processor-sa \
+  --image amazonlinux \
+  -- bash -c "yum install -y aws-cli && aws s3 ls s3://incomingorders"
+```
+
+---
+
+## 📌 Notes
+
+- The cluster is designed for:
+  - ~250 pods
+  - 28GB memory per node
+  - AZ failure tolerance
+- Bastion is optional if the EKS API is public
+- For private clusters, use IRSA and endpoint services with internal routing
