@@ -397,3 +397,22 @@ kubectl run irsa-test --rm -i --tty \
   - AZ failure tolerance
 - Bastion is optional if the EKS API is public
 - For private clusters, use IRSA and endpoint services with internal routing
+
+
+## SECTION TWO
+
+### a. Investigating Suspicious Outbound Traffic Alert from GuardDuty
+
+Upon receiving a GuardDuty alert indicating suspicious outbound traffic from an EC2 instance in the development environment, my first step would be containment. I would isolate the EC2 instance by detaching it from the internet gateway or modifying its security group to block outbound access, preventing further data exfiltration or malicious communication.
+
+Next, I would begin triaging the alert by reviewing CloudTrail logs for the instance to identify any unusual API calls, especially those related to networking or IAM. I would also check VPC Flow Logs to trace the destination IPs, ports, and frequency of the outbound traffic. Reviewing the EC2 instance metadata, installed software, and user access history via SSM or forensic snapshot analysis would provide additional context.
+
+Finally, I would determine if the activity was intentional (e.g., part of a dev test), misconfiguration, or the result of compromise. If it appears malicious, I would escalate to security leadership, revoke compromised credentials, and rotate instance roles or keys. Post-investigation, I would recommend preventive controls like stricter security group rules, GuardDuty suppression rules (if false positive), and runtime threat detection tooling such as AWS Inspector or third-party EDR.
+
+### b. Initial Steps After a Contained AWS Security Incident
+
+Following containment of a security incident in AWS, the first step I’d recommend is preserving all relevant data and logs before any clean-up or redeployment. This includes enabling and exporting CloudTrail, VPC Flow Logs, S3 access logs, GuardDuty findings, and EKS/Kubernetes audit logs if applicable. Ensuring immutable storage of this data allows accurate post-mortem analysis without risk of tampering.
+
+The next action would be assembling a timeline of events. Using the collected logs, I’d reconstruct actions leading up to, during, and after the breach. Correlating IAM activity, API calls, instance changes, and networking patterns helps identify the blast radius and root cause. Tools like AWS Detective, CloudTrail Lake, or open-source log analyzers can assist in visualizing and understanding this activity.
+
+Finally, I’d collaborate with the security lead to identify whether the incident stemmed from misconfiguration, compromised credentials, or unpatched resources. I'd support creating incident response documentation, remediating vulnerabilities, and applying lessons learned via automation, IAM least privilege principles, service control policies, and runbooks for future response preparedness.
