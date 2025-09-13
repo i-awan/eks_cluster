@@ -43,11 +43,6 @@ resource "aws_eks_node_group" "workers" {
 
   instance_types = [var.instance_type]
 
-  remote_access {
-    ec2_ssh_key               = var.ssh_key_name
-    source_security_group_ids = var.security_group_ids
-  }
-
   ami_type       = "AL2_x86_64"
   disk_size      = 20
   capacity_type  = "ON_DEMAND"
